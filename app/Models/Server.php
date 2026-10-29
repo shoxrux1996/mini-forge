@@ -25,12 +25,14 @@ use phpseclib4\Crypt\PublicKeyLoader;
  * @property string $ssh_private_key
  * @property ?string $ssh_key_passphrase
  * @property ?string $ssh_host_key_fingerprint
+ * @property ?string $acme_email
  * @property ?string $os_name
  * @property ?string $os_version
  * @property ?string $architecture
  * @property ?int $cpu_cores
  * @property ?int $memory_mb
  * @property ?int $disk_gb
+ * @property ?int $uptime_seconds
  * @property ?string $docker_version
  * @property ?string $compose_version
  * @property ?Carbon $inspected_at
@@ -39,7 +41,7 @@ use phpseclib4\Crypt\PublicKeyLoader;
  * @property ?string $last_error
  */
 #[Fillable([
-    'name', 'host', 'ssh_port', 'ssh_user', 'ssh_private_key', 'ssh_key_passphrase',
+    'name', 'host', 'ssh_port', 'ssh_user', 'ssh_private_key', 'ssh_key_passphrase', 'acme_email',
 ])]
 #[Hidden(['ssh_private_key', 'ssh_key_passphrase'])]
 class Server extends Model
@@ -63,6 +65,7 @@ class Server extends Model
     {
         return [
             'ssh_port' => 'integer',
+            'uptime_seconds' => 'integer',
             'ssh_private_key' => 'encrypted',
             'ssh_key_passphrase' => 'encrypted',
             'provisioning_status' => ProvisioningStatus::class,

@@ -8,6 +8,7 @@ use App\Filament\Resources\Servers\Pages\CreateServer;
 use App\Filament\Resources\Servers\Pages\EditServer;
 use App\Filament\Resources\Servers\Pages\ListServers;
 use App\Filament\Resources\Servers\Pages\ViewServer;
+use App\Filament\Resources\Servers\RelationManagers\ProvisioningRunsRelationManager;
 use App\Filament\Resources\Servers\Schemas\ServerForm;
 use App\Filament\Resources\Servers\Schemas\ServerInfolist;
 use App\Filament\Resources\Servers\Tables\ServersTable;
@@ -41,6 +42,13 @@ class ServerResource extends Resource
     public static function table(Table $table): Table
     {
         return ServersTable::configure($table);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            ProvisioningRunsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

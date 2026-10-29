@@ -51,6 +51,11 @@ class ServerForm
                             ->maxLength(32)
                             ->regex('/^[a-z_][a-z0-9_-]*$/')
                             ->helperText('Provisioning needs root, or a user with passwordless sudo.'),
+                        TextInput::make('acme_email')
+                            ->label('Let\'s Encrypt email')
+                            ->email()
+                            ->maxLength(255)
+                            ->helperText('Used by Traefik for HTTPS certificates. Required before provisioning.'),
                     ]),
 
                 Section::make('SSH key')
