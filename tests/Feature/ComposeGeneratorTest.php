@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Infrastructure\Docker\ComposeGenerator;
 use App\Models\Server;
 
-it('renders a locked-down Traefik stack', function () {
+it('renders a locked-down infrastructure stack', function () {
     $yaml = app(ComposeGenerator::class)->infrastructure(Server::factory()->make(['acme_email' => 'ops@example.com']));
 
     expect($yaml)
@@ -18,7 +18,11 @@ it('renders a locked-down Traefik stack', function () {
         ->toContain('internal: true')
         ->toContain('name: "mini-forge"')
         ->not->toContain('--api.insecure')
-        ->not->toContain('8080:8080');
+        ->not->toContain('8080:8080')
+        ->not->toContain('5432:')
+        ->not->toContain('6379:')
+        ->toContain('--aclfile')
+        ->toContain('name: "mini-forge-data"');
 });
 
 it('refuses to render without a valid email', function (?string $email) {

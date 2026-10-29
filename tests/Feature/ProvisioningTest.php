@@ -24,7 +24,7 @@ function healthyConnection(): FakeConnection
 {
     return (new FakeConnection)
         ->on('/os-release/', "os_name=Ubuntu\nos_version=24.04\ndocker_version=29.0.1\ncompose_version=2.40.3")
-        ->on("/State.Health.Status}}' mini-forge-traefik$/", "healthy\n");
+        ->on("/State.Health.Status}}' mini-forge-traefik mini-forge-postgres/", "/mini-forge-traefik healthy\n/mini-forge-postgres healthy\n/mini-forge-redis healthy\n");
 }
 
 function stepStatuses(ServerProvisioningRun $run): array
@@ -130,8 +130,8 @@ it('stops at the first failing step and leaves the rest pending', function () {
         ->and($this->connection->ran('/docker-ce/'))->toBeFalse();
 });
 
-it('fails verification when Traefik is not healthy', function () {
-    $this->connection->on("/State.Health.Status}}' mini-forge-traefik$/", "starting\n");
+it('fails verification when a service is not healthy', function () {
+    $this->connection->on("/State.Health.Status}}' mini-forge-traefik mini-forge-postgres/", "/mini-forge-traefik healthy\n/mini-forge-postgres starting\n/mini-forge-redis healthy\n");
 
     StartProvisioning::run($this->server);
 
@@ -139,7 +139,7 @@ it('fails verification when Traefik is not healthy', function () {
 
     expect($run->status)->toBe(RunStatus::Failed)
         ->and(stepStatuses($run)['verify'])->toBe('failed')
-        ->and($run->error)->toContain('Traefik is not healthy');
+        ->and($run->error)->toContain('Not healthy: /mini-forge-postgres starting');
 });
 
 it('fails when the server is unreachable', function () {
@@ -194,7 +194,7 @@ it('logs the full output of a failed step and the cause in the error', function 
     StartProvisioning::run($this->server);
 
     $run = $this->server->provisioningRuns()->sole();
-    $step = collect($run->steps)->firstWhere('key', 'start-traefik');
+    $step = collect($run->steps)->firstWhere('key', 'start-services');
 
     expect($run->error)->toContain('failed to mount overlay')
         ->and($run->error)->not->toContain('Pulling layer 20')

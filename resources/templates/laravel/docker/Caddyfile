@@ -1,0 +1,15 @@
+# FrankenPHP inside the app container. TLS and domains are handled by the
+# shared Traefik proxy, so this only serves plain HTTP on :8080.
+{
+	admin off
+	auto_https off
+	frankenphp {
+		num_threads {$FRANKENPHP_THREADS:3}
+	}
+}
+
+:8080 {
+	root * /app/public
+	encode zstd br gzip
+	php_server
+}

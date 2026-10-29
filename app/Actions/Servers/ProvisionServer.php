@@ -38,10 +38,11 @@ class ProvisionServer
         'install-compose' => ['Install Docker Compose plugin', 300],
         'enable-docker' => ['Start Docker at boot', 60],
         'create-directories' => ['Create Mini Forge directories', 30],
-        'create-network' => ['Create shared proxy network', 30],
-        'write-traefik' => ['Write Traefik configuration', 60],
-        'start-traefik' => ['Start Traefik', 300],
-        'verify' => ['Verify Docker, Compose and Traefik', 60],
+        'create-network' => ['Create Docker networks', 30],
+        'create-secrets' => ['Generate database passwords', 30],
+        'write-config' => ['Write infrastructure configuration', 60],
+        'start-services' => ['Start Traefik, Postgres and Redis', 600],
+        'verify' => ['Verify Docker, Compose and services', 60],
     ];
 
     public function __construct(private readonly ComposeGenerator $compose) {}
@@ -132,18 +133,18 @@ class ProvisionServer
         $label = self::STEPS[$key][0];
 
         return match ($key) {
-            'write-traefik' => $this->writeTraefik($run, $connection),
+            'write-config' => $this->writeConfig($run, $connection),
             'verify' => $this->verify($run, $connection),
             default => $this->script($connection, $key, self::STEPS[$key][1])->throw($label)->combinedOutput(),
         };
     }
 
-    private function writeTraefik(ServerProvisioningRun $run, ServerConnection $connection): string
+    private function writeConfig(ServerProvisioningRun $run, ServerConnection $connection): string
     {
         $path = config('mini-forge.remote_root').'/infrastructure/compose.yaml';
         $connection->upload($path, $this->compose->infrastructure($run->server), 0640);
 
-        $validation = $this->script($connection, 'validate-traefik', 60)->throw('Validating compose.yaml');
+        $validation = $this->script($connection, 'validate-services', 60)->throw('Validating compose.yaml');
 
         return "Wrote {$path}\n".$validation->combinedOutput();
     }
@@ -156,16 +157,19 @@ class ProvisionServer
             throw new RuntimeException('Docker or Docker Compose is not responding after installation.');
         }
 
-        $traefik = $connection->run(
-            "docker inspect -f '{{.State.Health.Status}}' mini-forge-traefik",
+        $health = $connection->run(
+            "docker inspect -f '{{.Name}} {{.State.Health.Status}}' mini-forge-traefik mini-forge-postgres mini-forge-redis",
             30,
-        )->throw('Checking Traefik');
+        )->throw('Checking services');
 
-        if (trim($traefik->output) !== 'healthy') {
-            throw new RuntimeException('Traefik is not healthy: '.trim($traefik->output));
+        $unhealthy = collect(preg_split('/\R/', trim($health->output)) ?: [])
+            ->reject(fn (string $line) => str_ends_with($line, ' healthy'));
+
+        if ($unhealthy->isNotEmpty()) {
+            throw new RuntimeException('Not healthy: '.$unhealthy->implode(', '));
         }
 
-        return "Docker {$server->docker_version}, Compose {$server->compose_version}, Traefik healthy";
+        return "Docker {$server->docker_version}, Compose {$server->compose_version}; Traefik, Postgres and Redis healthy";
     }
 
     private function script(ServerConnection $connection, string $name, int $timeout): CommandResult
@@ -179,6 +183,7 @@ class ProvisionServer
         $variables = Shell::exports([
             'ROOT' => (string) config('mini-forge.remote_root'),
             'NETWORK' => (string) config('mini-forge.network'),
+            'DATA_NETWORK' => (string) config('mini-forge.data_network'),
         ]);
 
         return $connection->run($variables."\n".$script, $timeout);

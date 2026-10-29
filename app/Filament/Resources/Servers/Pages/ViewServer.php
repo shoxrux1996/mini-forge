@@ -66,7 +66,7 @@ class ViewServer extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Provision this server?')
                 ->modalDescription(<<<'TEXT'
-                    Mini Forge will install Docker Engine and the Compose plugin from Docker's official apt repository (skipped if Docker is already installed), enable Docker at boot, create /opt/mini-forge, create the "mini-forge" Docker network, and start Traefik on ports 80 and 443.
+                    Mini Forge will install Docker Engine and the Compose plugin from Docker's official apt repository (skipped if Docker is already installed), enable Docker at boot, create /opt/mini-forge, create the shared Docker networks, generate database passwords on the server, and start Traefik (ports 80 and 443) plus a shared Postgres and Redis that are reachable only by your sites.
                     It does not change SSH settings, users or firewall rules, and stops if ports 80/443 are used by another service. Safe to run again.
                     TEXT)
                 ->modalSubmitActionLabel('Provision')

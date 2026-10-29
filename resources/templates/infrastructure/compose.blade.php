@@ -68,12 +68,80 @@ services:
     mem_limit: 128m
     logging: *logging
 
+  # Shared by all sites, one database and login role per site. Reachable
+  # only on the internal data network; never published on the host.
+  postgres:
+    image: {!! Yaml::string($postgresImage) !!}
+    container_name: mini-forge-postgres
+    restart: unless-stopped
+    env_file: .env
+    # Sized for a small (1-2 GB) server.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - effective_cache_size=256MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - max_connections=60
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    networks:
+      data:
+        aliases: [postgres]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  # One logical database and ACL user per site (see redis/users.acl).
+  redis:
+    image: {!! Yaml::string($redisImage) !!}
+    container_name: mini-forge-redis
+    restart: unless-stopped
+    env_file: .env
+    command:
+      - redis-server
+      - --aclfile
+      - /etc/redis-acl/users.acl
+      - --appendonly
+      - "yes"
+      - --databases
+      - "{{ $redisDatabases }}"
+      - --maxmemory
+      - 96mb
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - ./redis:/etc/redis-acl
+      - redis:/data
+    networks:
+      data:
+        aliases: [redis]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
 networks:
   socket:
     internal: true
   proxy:
     name: {!! Yaml::string($network) !!}
     external: true
+  data:
+    name: {!! Yaml::string($dataNetwork) !!}
+    external: true
 
 volumes:
   letsencrypt:
+  postgres:
+  redis:

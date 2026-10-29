@@ -9,6 +9,14 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $site_id
+ * @property ServiceRole $role
+ * @property bool $enabled
+ * @property ?string $command
+ * @property ?string $memory_limit
+ */
 #[Fillable(['role', 'enabled', 'command', 'memory_limit'])]
 class DockerService extends Model
 {

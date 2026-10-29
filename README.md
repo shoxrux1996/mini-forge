@@ -12,8 +12,8 @@ Built with Laravel 13, Filament 5, SQLite and phpseclib.
 |---|---|---|
 | 1 | Foundation: login, data model, server management | Done |
 | 2 | SSH, host-key pinning, inspection, Docker + Traefik provisioning | Done |
-| 3 | Sites, Compose templates, environment editor, start/stop | Next |
-| 4 | Image build and push, deployments, health checks, rollback | Planned |
+| 3 | Sites, Compose templates, environment editor, start/stop | Done |
+| 4 | Image build and push, deployments, health checks, rollback | Next |
 | 5 | Metrics, containers, logs, Artisan commands, docs | Planned |
 
 ## Run it locally
@@ -68,6 +68,11 @@ is safe and resumes a failed run.
 It never changes SSH settings, users or firewall rules. If `ufw` is active
 without 80/443 open, the log says so and shows the command to run.
 
+Provisioning also starts a shared Postgres 17 and Redis 7.4. Their admin
+passwords are generated on the server (`/opt/mini-forge/infrastructure/.env`)
+and never leave it. Both listen only on the internal `mini-forge-data`
+network, which has no outside access, and publish no ports.
+
 ### Traefik and the Docker socket
 
 Traefik routes only containers labelled `traefik.enable=true`, redirects
@@ -88,6 +93,49 @@ The first successful connection pins the server's SSH host key (trust on
 first use; compare it with `ssh-keygen -lf` output on the server if you want
 to be sure). Later connections are refused before any credentials are sent
 if the key changes. After reinstalling a server, use **Forget host key**.
+
+## Sites
+
+**Sites → New site** records the domain, repository, image repository and
+which processes run (web always; queue worker and scheduler optional). It
+also creates a production environment: a fresh `APP_KEY`, and credentials
+for the site's own Postgres database and Redis user.
+
+**Apply configuration** writes everything to `/opt/mini-forge/sites/<slug>/`:
+
+- `compose.yaml`, generated from `resources/templates/laravel/compose.blade.php`
+  and checked with `docker compose config` before use;
+- `.env` (mode 640, group www-data), mounted read-only at `/app/.env`;
+- the Postgres role and database, and the Redis ACL user.
+
+A deployed site's containers are then recreated so they pick up the change.
+Start, stop and restart act on the Compose project; the containers table on
+the site page is read live over SSH each time it loads.
+
+### Isolation between sites
+
+| | Per site | Shared |
+|---|---|---|
+| Containers | own Compose project and default network | web joins the `mini-forge` proxy network |
+| Postgres | own database and login role; `CONNECT` revoked from others | one Postgres server |
+| Redis | own logical database (1-63) and ACL user; cannot `SELECT` another database or run `FLUSHALL`, `CONFIG`, `MOVE`, `COPY` and other admin commands | one Redis server |
+| Files | own directory and `storage` volume | — |
+
+Credentials go to the server in files uploaded over SFTP (mode 600, deleted
+right after use), never on a command line.
+
+### Environment variables
+
+Edit them on the site's **Environment** tab, or paste a whole `.env` with
+**Import .env**. Every value is encrypted in Mini Forge's database; names
+containing KEY, SECRET, PASSWORD, TOKEN and similar are marked sensitive and
+masked. Changes take effect on the next apply or deploy.
+
+### Removing a site
+
+Removal asks you to type the domain. It always removes the containers, the
+site directory and the Redis data; the Postgres database and `storage` volume
+are deleted only if you tick the box.
 
 ## Trying it without a VPS
 
