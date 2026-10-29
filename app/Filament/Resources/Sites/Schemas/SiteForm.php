@@ -81,6 +81,11 @@ class SiteForm
                             ->rule(new Matches(self::IMAGE_PATTERN, 'Use a lowercase repository without a tag, like ghcr.io/acme/shop.'))
                             ->placeholder('ghcr.io/acme/shop')
                             ->helperText('Without a tag; each release is tagged with its commit.'),
+                        Select::make('registry_id')
+                            ->label('Registry credentials')
+                            ->relationship('registry', 'name')
+                            ->placeholder('None: push with my Docker login, pull anonymously')
+                            ->helperText('Used to push the image from this machine and to pull it on the server.'),
                         Select::make('web_runtime')
                             ->options(WebRuntime::class)
                             ->default(WebRuntime::FrankenPhp)

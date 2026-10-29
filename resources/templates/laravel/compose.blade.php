@@ -16,7 +16,14 @@ x-app: &app
   restart: unless-stopped
   volumes:
     - storage:/app/storage
-    - ./.env:/app/.env:ro
+    # Long syntax: if .env is missing, Docker refuses to start instead of
+    # creating an empty directory in its place.
+    - type: bind
+      source: ./.env
+      target: /app/.env
+      read_only: true
+      bind:
+        create_host_path: false
   networks: [default, data]
   logging: *logging
 

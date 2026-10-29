@@ -8,7 +8,18 @@ use App\Enums\RunStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property int $deployment_id
+ * @property int $position
+ * @property string $name
+ * @property RunStatus $status
+ * @property ?string $output
+ * @property ?Carbon $started_at
+ * @property ?Carbon $finished_at
+ */
 #[Fillable(['position', 'name', 'status', 'output', 'started_at', 'finished_at'])]
 class DeploymentStep extends Model
 {

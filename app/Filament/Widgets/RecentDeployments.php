@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\Deployments\DeploymentResource;
 use App\Models\Deployment;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -20,11 +21,13 @@ class RecentDeployments extends TableWidget
         return $table
             ->query(fn () => Deployment::query()->with('site')->latest()->limit(10))
             ->paginated(false)
+            ->poll('5s')
+            ->recordUrl(fn (Deployment $record) => DeploymentResource::getUrl('view', ['record' => $record]))
             ->emptyStateHeading('No deployments yet')
             ->columns([
-                TextColumn::make('site.name'),
+                TextColumn::make('site.domain')->label('Site'),
                 TextColumn::make('status')->badge(),
-                TextColumn::make('trigger'),
+                TextColumn::make('trigger')->badge()->color('gray'),
                 TextColumn::make('commit_sha')
                     ->label('Commit')
                     ->formatStateUsing(fn (?string $state) => $state ? substr($state, 0, 7) : null)

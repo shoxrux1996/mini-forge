@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Sites\Pages;
 
+use App\Actions\Deployments\StartDeployment;
 use App\Actions\Sites\ApplySiteConfiguration;
 use App\Actions\Sites\RemoveSite;
 use App\Actions\Sites\RestartSite;
 use App\Actions\Sites\StartSite;
 use App\Actions\Sites\StopSite;
+use App\Enums\DeploymentTrigger;
+use App\Enums\ImageSource;
 use App\Enums\SiteStatus;
+use App\Filament\Resources\Deployments\DeploymentResource;
 use App\Filament\Resources\Sites\SiteResource;
 use App\Models\Site;
+use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\EditAction;
@@ -20,6 +25,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use RuntimeException;
 
@@ -43,6 +49,30 @@ class ViewSite extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('deploy')
+                ->icon(Heroicon::OutlinedRocketLaunch)
+                ->modalHeading(fn (Site $record) => "Deploy {$record->domain}")
+                ->modalDescription(fn (Site $record) => $record->image_source === ImageSource::Build
+                    ? "Clones {$record->branch}, builds the image on this machine, pushes it to {$record->image_repository} and releases it."
+                    .($record->run_migrations ? ' Migrations run before the new containers start.' : '')
+                    : "Pulls a tag of {$record->image_repository} and releases it."
+                    .($record->run_migrations ? ' Migrations run before the new containers start.' : ''))
+                ->schema(fn (Site $record) => $record->image_source === ImageSource::Registry ? [
+                    TextInput::make('tag')
+                        ->required()
+                        ->maxLength(128)
+                        ->regex(StartDeployment::TAG_PATTERN)
+                        ->placeholder('v1.4.0'),
+                ] : [])
+                ->modalSubmitActionLabel('Deploy')
+                ->action(fn (Site $record, array $data) => $this->startDeployment($record, DeploymentTrigger::Manual, $data['tag'] ?? null)),
+            Action::make('redeploy')
+                ->icon(Heroicon::OutlinedArrowPathRoundedSquare)
+                ->color('gray')
+                ->visible(fn (Site $record) => $record->current_image !== null)
+                ->requiresConfirmation()
+                ->modalDescription(fn (Site $record) => "Releases {$record->current_image} again with the current environment, without building or migrating.")
+                ->action(fn (Site $record) => $this->startDeployment($record, DeploymentTrigger::Redeploy)),
             self::applyAction(),
             Action::make('start')
                 ->icon(Heroicon::OutlinedPlay)
@@ -120,6 +150,21 @@ class ViewSite extends ViewRecord
 
                 Notification::make()->success()->title('Configuration applied')->send();
             });
+    }
+
+    private function startDeployment(Site $site, DeploymentTrigger $trigger, ?string $tag = null): void
+    {
+        $user = Auth::user();
+
+        try {
+            $deployment = StartDeployment::run($site, $trigger, $user instanceof User ? $user : null, $tag);
+        } catch (RuntimeException $e) {
+            Notification::make()->danger()->title('Deployment not started')->body($e->getMessage())->send();
+
+            return;
+        }
+
+        $this->redirect(DeploymentResource::getUrl('view', ['record' => $deployment]));
     }
 
     /**

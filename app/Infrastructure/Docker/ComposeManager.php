@@ -7,6 +7,7 @@ namespace App\Infrastructure\Docker;
 use App\Contracts\ServerConnection;
 use App\Data\CommandResult;
 use App\Infrastructure\SSH\Shell;
+use App\Models\Registry;
 use App\Models\Site;
 use RuntimeException;
 
@@ -72,6 +73,14 @@ final class ComposeManager
     {
         $directory = $this->site->remotePath();
 
+        // Older Docker setups create a missing bind-mount source as an empty
+        // directory; neither file is ever legitimately a directory.
+        $this->run(
+            'for file in .env compose.yaml; do path='.Shell::quote($directory).'/$file; '
+            .'if [ -d "$path" ] && [ ! -L "$path" ]; then rm -rf -- "$path"; echo "Replaced the directory $file with a file."; fi; done',
+            'Checking the site files',
+        );
+
         // Readable by the app user inside the container, nobody else.
         $this->connection->upload($directory.'/.env', $env, 0640);
         $this->run('chgrp '.self::WEB_GROUP.' '.Shell::quote($directory.'/.env'), 'Setting .env permissions');
@@ -91,10 +100,99 @@ final class ComposeManager
      * is a single-file bind mount (replacing it does not reach running
      * containers) and Laravel caches config at start anyway.
      */
-    public function recreate(): void
+    public function recreate(): string
     {
-        $this->compose('up -d --force-recreate --remove-orphans', 'Recreating containers', 600);
-        $this->waitUntilHealthy();
+        $output = $this->compose('up -d --force-recreate --remove-orphans', 'Recreating containers', 600)->combinedOutput();
+
+        return trim($output."\n".$this->waitUntilHealthy());
+    }
+
+    /**
+     * Pulls the image with a throwaway Docker config holding only this
+     * registry's login; the server's own Docker config is left alone.
+     */
+    public function pull(string $image, ?Registry $registry): string
+    {
+        $pull = 'docker pull '.Shell::quote($this->imageReference($image));
+
+        if ($registry === null) {
+            return $this->run($pull, 'Pulling the image', 900)->combinedOutput();
+        }
+
+        $path = $this->site->remotePath().'/.mini-forge-'.bin2hex(random_bytes(6));
+        $this->connection->upload($path, $registry->dockerConfig(), 0600);
+        $file = Shell::quote($path);
+
+        $script = <<<BASH
+            config=\$(mktemp -d)
+            trap 'rm -rf "\$config" {$file}' EXIT
+            install -m 0600 {$file} "\$config/config.json"
+            DOCKER_CONFIG="\$config" {$pull}
+            BASH;
+
+        return $this->run($script, 'Pulling the image', 900)->combinedOutput();
+    }
+
+    /**
+     * Runs migrations in a one-off container of the new image before it
+     * receives traffic. Traefik is told to ignore that container.
+     */
+    public function migrate(): string
+    {
+        return $this->compose(
+            'run --rm -T --no-deps --label traefik.enable=false web php artisan migrate --force --no-interaction',
+            'Running migrations',
+            900,
+        )->combinedOutput();
+    }
+
+    /**
+     * Requests the health check path through Traefik on the server itself,
+     * so it checks routing as well as the app. Certificates may still be
+     * pending, so TLS is not verified here.
+     */
+    public function verifyRoute(int $seconds = 60): string
+    {
+        $domain = $this->site->domain;
+        $url = Shell::quote('https://'.$domain.$this->site->health_check_path);
+        $resolve = Shell::quote($domain.':443:127.0.0.1');
+
+        $script = <<<BASH
+            code=000
+            for _ in \$(seq 1 {$this->attempts($seconds)}); do
+              code=\$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 --resolve {$resolve} {$url} || true)
+              case "\$code" in 2??) echo "Traefik answered HTTP \$code for {$this->site->health_check_path}."; exit 0 ;; esac
+              sleep 2
+            done
+            echo "Expected HTTP 2xx through Traefik, got \$code." >&2
+            exit 1
+            BASH;
+
+        return $this->run($script, 'Checking the site through Traefik', $seconds + 30)->combinedOutput();
+    }
+
+    /**
+     * Removes this site's images on the server except those in $keep, so
+     * old releases do not fill the disk. Rollback pulls them again.
+     *
+     * @param  list<string>  $keep
+     */
+    public function removeImagesExcept(array $keep): string
+    {
+        $repository = Shell::quote($this->imageReference($this->site->image_repository));
+        $kept = Shell::quote(' '.implode(' ', array_map($this->imageReference(...), $keep)).' ');
+
+        $script = <<<BASH
+            keep={$kept}
+            removed=0
+            for image in \$(docker image ls --format '{{.Repository}}:{{.Tag}}' {$repository}); do
+              case "\$keep" in *" \$image "*) continue ;; esac
+              if docker image rm "\$image" >/dev/null 2>&1; then echo "Removed \$image"; removed=\$((removed + 1)); fi
+            done
+            echo "\$removed old image(s) removed."
+            BASH;
+
+        return $this->run($script, 'Removing old images', 300)->combinedOutput();
     }
 
     public function stop(): void
@@ -195,7 +293,7 @@ final class ComposeManager
             ->all();
     }
 
-    private function waitUntilHealthy(int $seconds = 120): void
+    private function waitUntilHealthy(int $seconds = 120): string
     {
         $container = Shell::quote($this->site->webContainer());
 
@@ -203,7 +301,7 @@ final class ComposeManager
             status=missing
             for _ in \$(seq 1 {$this->attempts($seconds)}); do
               status=\$(docker inspect -f '{{.State.Health.Status}}' {$container} 2>/dev/null || echo missing)
-              [ "\$status" = "healthy" ] && exit 0
+              if [ "\$status" = "healthy" ]; then echo "The web container is healthy."; exit 0; fi
               [ "\$status" = "unhealthy" ] && break
               sleep 2
             done
@@ -212,7 +310,7 @@ final class ComposeManager
             exit 1
             BASH;
 
-        $this->run($script, 'Waiting for the health check', $seconds + 30);
+        return $this->run($script, 'Waiting for the health check', $seconds + 30)->output;
     }
 
     private function attempts(int $seconds): int
@@ -263,6 +361,15 @@ final class ComposeManager
     private function run(string $script, string $what, int $timeout = 120): CommandResult
     {
         return $this->connection->run($script, $timeout)->throw($what);
+    }
+
+    private function imageReference(string $image): string
+    {
+        if (preg_match('~^[a-z0-9][a-z0-9._:/-]*(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?$~', $image) !== 1) {
+            throw new RuntimeException("Unexpected image reference [{$image}].");
+        }
+
+        return $image;
     }
 
     private function identifier(string $name): string

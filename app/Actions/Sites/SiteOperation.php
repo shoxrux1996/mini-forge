@@ -28,9 +28,7 @@ final class SiteOperation
      */
     public static function run(Site $site, Closure $operation): mixed
     {
-        if ($site->server->provisioning_status !== ProvisioningStatus::Ready) {
-            throw new RuntimeException('Provision the server before managing its sites.');
-        }
+        self::ensureServerReady($site);
 
         $lock = Cache::lock(self::lockName($site), self::LOCK_SECONDS);
 
@@ -39,15 +37,36 @@ final class SiteOperation
         }
 
         try {
-            $connection = ConnectToServer::run($site->server);
-
-            try {
-                return $operation(new ComposeManager($connection, $site));
-            } finally {
-                $connection->disconnect();
-            }
+            return self::connected($site, $operation);
         } finally {
             $lock->release();
+        }
+    }
+
+    /**
+     * Connects without taking the lock, for callers that already hold it
+     * (a deployment holds it across its local build as well).
+     *
+     * @template T
+     *
+     * @param  Closure(ComposeManager): T  $operation
+     * @return T
+     */
+    public static function connected(Site $site, Closure $operation): mixed
+    {
+        $connection = ConnectToServer::run($site->server);
+
+        try {
+            return $operation(new ComposeManager($connection, $site));
+        } finally {
+            $connection->disconnect();
+        }
+    }
+
+    public static function ensureServerReady(Site $site): void
+    {
+        if ($site->server->provisioning_status !== ProvisioningStatus::Ready) {
+            throw new RuntimeException('Provision the server before managing its sites.');
         }
     }
 

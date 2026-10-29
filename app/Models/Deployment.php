@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\DeploymentTrigger;
 use App\Enums\RunStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -21,12 +22,16 @@ use Illuminate\Support\Carbon;
  * @property ?string $branch
  * @property ?string $commit_sha
  * @property ?string $image
+ * @property ?string $previous_image
  * @property ?string $error
  * @property ?Carbon $started_at
  * @property ?Carbon $finished_at
+ * @property-read Site $site
+ * @property-read ?User $user
+ * @property-read Collection<int, DeploymentStep> $steps
  */
 #[Fillable([
-    'user_id', 'trigger', 'status', 'branch', 'commit_sha', 'image', 'error', 'started_at', 'finished_at',
+    'user_id', 'trigger', 'status', 'branch', 'commit_sha', 'image', 'previous_image', 'error', 'started_at', 'finished_at',
 ])]
 class Deployment extends Model
 {

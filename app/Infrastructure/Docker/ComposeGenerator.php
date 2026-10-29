@@ -33,13 +33,13 @@ final class ComposeGenerator
      * A site's own Compose project. Disabled services are left out, so
      * `up --remove-orphans` stops them.
      */
-    public function site(Site $site): string
+    public function site(Site $site, ?string $image = null): string
     {
         return view('templates::laravel.compose', [
             'site' => $site,
             // Before the first deploy there is no image; the file is still
             // valid and is written so it can be inspected.
-            'image' => $site->current_image ?? $site->image_repository.':not-deployed',
+            'image' => $image ?? $site->current_image ?? $site->image_repository.':not-deployed',
             'services' => $site->services()->where('enabled', true)->orderBy('id')->get(),
             'network' => config('mini-forge.network'),
             'dataNetwork' => config('mini-forge.data_network'),

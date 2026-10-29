@@ -32,18 +32,20 @@ use RuntimeException;
  * @property WebRuntime $web_runtime
  * @property ImageSource $image_source
  * @property string $image_repository
+ * @property ?int $registry_id
  * @property ?string $current_image
  * @property bool $run_migrations
  * @property string $health_check_path
  * @property int $redis_database
  * @property SiteStatus $status
  * @property-read Server $server
+ * @property-read ?Registry $registry
  * @property-read Collection<int, DockerService> $services
  * @property-read Collection<int, SiteEnvironmentVariable> $environmentVariables
  */
 #[Fillable([
     'server_id', 'name', 'domain', 'repository_url', 'branch', 'php_version', 'web_runtime',
-    'image_source', 'image_repository', 'run_migrations', 'health_check_path',
+    'image_source', 'image_repository', 'registry_id', 'run_migrations', 'health_check_path',
 ])]
 class Site extends Model
 {
@@ -90,6 +92,14 @@ class Site extends Model
     public function server(): BelongsTo
     {
         return $this->belongsTo(Server::class);
+    }
+
+    /**
+     * @return BelongsTo<Registry, $this>
+     */
+    public function registry(): BelongsTo
+    {
+        return $this->belongsTo(Registry::class);
     }
 
     /**

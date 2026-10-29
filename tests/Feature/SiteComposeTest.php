@@ -42,8 +42,12 @@ it('mounts only storage and the .env file, never source code', function () {
     $yaml = app(ComposeGenerator::class)->site(makeSite());
 
     preg_match_all('/^\s+- (\S+:\/app\S*)$/m', $yaml, $mounts);
+    preg_match_all('/^\s+target: (\S+)$/m', $yaml, $binds);
 
-    expect($mounts[1])->toBe(['storage:/app/storage', './.env:/app/.env:ro'])
+    expect($mounts[1])->toBe(['storage:/app/storage'])
+        ->and($binds[1])->toBe(['/app/.env'])
+        // A missing .env stops the container instead of becoming a directory.
+        ->and($yaml)->toContain("source: ./.env\n      target: /app/.env\n      read_only: true\n      bind:\n        create_host_path: false")
         ->and($yaml)->toContain('image: "ghcr.io/acme/shop:not-deployed"');
 });
 

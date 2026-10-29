@@ -20,7 +20,8 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /app
 
 FROM base AS vendor
-COPY composer.json composer.lock ./
+# composer.lock* : an app without a lock file still builds (more slowly).
+COPY composer.json composer.lock* ./
 RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-autoloader --no-progress
 
 # Filament themes import CSS from vendor/, so assets build after Composer.

@@ -46,14 +46,17 @@ class ApplySiteConfiguration
         return $site;
     }
 
-    /** The file and credential part of applying, shared with deployments. */
-    public function sync(Site $site, ComposeManager $manager): void
+    /**
+     * The file and credential part of applying, shared with deployments,
+     * which pass the image they are about to release.
+     */
+    public function sync(Site $site, ComposeManager $manager, ?string $image = null): void
     {
         $variables = SiteEnvironment::variables($site);
 
         $manager->prepareDirectory();
         $manager->ensureDatabase((string) ($variables['DB_PASSWORD'] ?? ''));
         $manager->ensureRedisUser((string) ($variables['REDIS_PASSWORD'] ?? ''));
-        $manager->writeFiles(EnvFile::render($variables), $this->compose->site($site));
+        $manager->writeFiles(EnvFile::render($variables), $this->compose->site($site, $image));
     }
 }

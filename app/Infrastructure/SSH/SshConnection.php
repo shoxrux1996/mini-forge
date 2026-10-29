@@ -37,6 +37,7 @@ final class SshConnection implements ServerConnection
         $octal = sprintf('%04o', $mode);
 
         if (! $this->needsSudo()) {
+            // phpseclib throws if either fails.
             $this->ssh->put($path, $contents);
             $this->ssh->chmod($path, $mode);
 
@@ -50,9 +51,10 @@ final class SshConnection implements ServerConnection
         $this->ssh->chmod($temporary, 0600);
         $this->ssh->put($temporary, $contents);
 
+        // -T: fail if the target is a directory instead of writing into it.
         $result = $this->run(
-            'install -m '.$octal.' -o root -g root '.Shell::quote($temporary).' '.Shell::quote($path)
-            .'; rm -f '.Shell::quote($temporary)
+            "trap 'rm -f ".Shell::quote($temporary)."' EXIT\n"
+            .'install -T -m '.$octal.' -o root -g root '.Shell::quote($temporary).' '.Shell::quote($path)
         );
 
         if (! $result->successful()) {

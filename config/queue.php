@@ -42,7 +42,7 @@ return [
             'queue' => env('DB_QUEUE', 'default'),
             // Longer than ProvisionServerJob::TIMEOUT so a long run is never
             // handed to a second worker.
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 1900),
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 3700),
             'after_commit' => false,
         ],
 
