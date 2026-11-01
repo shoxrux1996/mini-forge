@@ -116,7 +116,7 @@ class DeploySite
             ]);
 
             $this->step('build', function (Closure $out) use ($site, $workspace): void {
-                $out($this->builder->prepareContext($workspace));
+                $out($this->builder->prepareContext($site, $workspace));
                 $out("Building {$this->deployment->image}\n");
                 $this->builder->buildAndPush(
                     $site, $workspace, (string) $this->deployment->image,

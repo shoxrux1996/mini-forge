@@ -14,6 +14,7 @@ use App\Enums\SiteStatus;
 use App\Filament\Resources\Deployments\Pages\ViewDeployment;
 use App\Filament\Resources\Sites\Pages\ViewSite;
 use App\Filament\Resources\Sites\RelationManagers\DeploymentsRelationManager;
+use App\Filament\Resources\Sites\Schemas\SiteForm;
 use App\Jobs\DeploySiteJob;
 use App\Livewire\DeploymentLog;
 use App\Models\Deployment;
@@ -403,3 +404,34 @@ it('rolls back from the deployments tab', function () {
         ->trigger->toBe(DeploymentTrigger::Rollback)
         ->image->toBe('ghcr.io/acme/shop:one');
 });
+
+it('builds with the Dockerfile the site names, and fails clearly if it is missing', function () {
+    $site = deployableSite($this->server, ['dockerfile_path' => 'docker/Production.Dockerfile']);
+
+    Process::fake(function (PendingProcess $process) {
+        if ($process->command[1] === 'clone') {
+            $directory = end($process->command);
+            mkdir($directory.'/docker', 0777, true);
+            touch($directory.'/docker/Production.Dockerfile');
+        }
+
+        return $process->command[0] === 'git' && $process->command[1] !== 'clone' ? Process::result(SHA."\n") : Process::result();
+    });
+
+    $deployment = StartDeployment::run($site);
+    DeploySite::run($deployment);
+
+    expect($deployment->refresh()->status)->toBe(RunStatus::Succeeded);
+    Process::assertRan(fn (PendingProcess $p) => in_array('docker/Production.Dockerfile', $p->command, true));
+
+    Process::fake(fn (PendingProcess $p) => $p->command[0] === 'git' && $p->command[1] !== 'clone' ? Process::result(SHA."\n") : Process::result());
+    $deployment = StartDeployment::run($site);
+    DeploySite::run($deployment);
+
+    expect($deployment->refresh()->status)->toBe(RunStatus::Failed)
+        ->and($deployment->error)->toContain('The repository has no docker/Production.Dockerfile');
+});
+
+it('rejects a Dockerfile path outside the repository', function (string $path) {
+    expect(preg_match(SiteForm::DOCKERFILE_PATTERN, $path))->toBe(0);
+})->with(['/etc/passwd', '../Dockerfile', 'a/../../b', '--file=x', '.env', 'a b']);

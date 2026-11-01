@@ -33,6 +33,7 @@ use RuntimeException;
  * @property ImageSource $image_source
  * @property string $image_repository
  * @property ?int $registry_id
+ * @property ?string $dockerfile_path
  * @property ?string $current_image
  * @property bool $run_migrations
  * @property string $health_check_path
@@ -45,7 +46,7 @@ use RuntimeException;
  */
 #[Fillable([
     'server_id', 'name', 'domain', 'repository_url', 'branch', 'php_version', 'web_runtime',
-    'image_source', 'image_repository', 'registry_id', 'run_migrations', 'health_check_path',
+    'image_source', 'image_repository', 'registry_id', 'dockerfile_path', 'run_migrations', 'health_check_path',
 ])]
 class Site extends Model
 {

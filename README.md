@@ -168,9 +168,10 @@ A first deployment has nothing to switch back to; its containers are left
 for inspection and the site is marked failed.
 
 Images are tagged `<commit>-<deployment id>`, so every deployment has its own
-tag. A repository can bring its own `.mini-forge/Dockerfile`; otherwise the
-default Laravel image in `resources/templates/laravel/docker` is used. Either
-way the image must serve HTTP on port 8080, have `curl`, and read its config
+tag. A site can name a Dockerfile in its repository (the **Dockerfile**
+setting), a repository can bring its own `.mini-forge/Dockerfile`, and
+otherwise the default Laravel image in `resources/templates/laravel/docker` is
+used. Either way the image must serve HTTP on port 8080, have `curl`, and read its config
 from `/app/.env`.
 
 TLS ends at Traefik, so the default image tells Laravel the request is HTTPS.

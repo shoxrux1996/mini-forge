@@ -26,6 +26,9 @@ class SiteForm
     /** registry/namespace/name without a tag, e.g. ghcr.io/acme/shop. */
     public const string IMAGE_PATTERN = '~^[a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?(/[a-z0-9]+([._-][a-z0-9]+)*)+$~';
 
+    /** A file inside the repository, which cannot be read as an option or leave it. */
+    public const string DOCKERFILE_PATTERN = '~^(?![-/.])(?!.*\.\.)[A-Za-z0-9._/-]{1,200}$~';
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -86,6 +89,12 @@ class SiteForm
                             ->relationship('registry', 'name')
                             ->placeholder('None: push with my Docker login, pull anonymously')
                             ->helperText('Used to push the image from this machine and to pull it on the server.'),
+                        TextInput::make('dockerfile_path')
+                            ->label('Dockerfile')
+                            ->maxLength(200)
+                            ->rule(new Matches(self::DOCKERFILE_PATTERN, 'Use a path inside the repository, like Dockerfile.'))
+                            ->placeholder('Default Laravel image')
+                            ->helperText('Leave empty to use .mini-forge/Dockerfile or the default image.'),
                         Select::make('web_runtime')
                             ->options(WebRuntime::class)
                             ->default(WebRuntime::FrankenPhp)

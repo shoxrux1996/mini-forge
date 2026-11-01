@@ -66,11 +66,19 @@ final class ImageBuilder
     }
 
     /**
-     * Uses the repository's own .mini-forge/Dockerfile if it has one,
-     * otherwise copies in the default Laravel image.
+     * Uses the site's Dockerfile setting, then the repository's own
+     * .mini-forge/Dockerfile, and otherwise copies in the default Laravel image.
      */
-    public function prepareContext(string $directory): string
+    public function prepareContext(Site $site, string $directory): string
     {
+        if ($site->dockerfile_path !== null) {
+            if (! is_file($directory.'/'.$site->dockerfile_path)) {
+                throw new RuntimeException("The repository has no {$site->dockerfile_path}.");
+            }
+
+            return "Using the repository's {$site->dockerfile_path}.\n";
+        }
+
         $target = $directory.'/.mini-forge';
 
         if (is_file($target.'/Dockerfile')) {
@@ -98,7 +106,7 @@ final class ImageBuilder
                 [
                     'docker', 'buildx', 'build',
                     '--platform', $platform,
-                    '--file', '.mini-forge/Dockerfile',
+                    '--file', $site->dockerfile_path ?? '.mini-forge/Dockerfile',
                     '--build-arg', 'PHP_VERSION='.$site->php_version->value,
                     '--tag', $image,
                     // One plain manifest; some registries reject attestation indexes.
