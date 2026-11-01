@@ -70,3 +70,7 @@ it('reads compose ps output in both formats', function () {
         ->and(ComposeManager::parseContainers(''))->toBe([])
         ->and(ComposeManager::parseContainers('not json'))->toBe([]);
 });
+
+it('tells Laravel that visitors arrive over HTTPS', function () {
+    expect(file_get_contents(resource_path('templates/laravel/docker/Caddyfile')))->toContain('env HTTPS on');
+});

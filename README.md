@@ -173,6 +173,12 @@ default Laravel image in `resources/templates/laravel/docker` is used. Either
 way the image must serve HTTP on port 8080, have `curl`, and read its config
 from `/app/.env`.
 
+TLS ends at Traefik, so the default image tells Laravel the request is HTTPS.
+A custom or prebuilt image must do the same, or call
+`$middleware->trustProxies(at: '*')` in `bootstrap/app.php`; otherwise assets
+get `http://` links and browsers block them. For real visitor IPs, for example
+in rate limiting, every app needs `trustProxies`.
+
 Sites set to **Prebuilt image from registry** skip the build: Deploy asks for
 a tag (for example one GitHub Actions pushed). **Redeploy** releases the
 running image again without building or migrating, for example after an

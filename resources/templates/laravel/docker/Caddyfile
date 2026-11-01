@@ -11,5 +11,9 @@
 :8080 {
 	root * /app/public
 	encode zstd br gzip
-	php_server
+	# Visitors only reach this through Traefik on HTTPS. Without this Laravel
+	# sees plain HTTP and writes http:// links, which browsers block.
+	php_server {
+		env HTTPS on
+	}
 }
