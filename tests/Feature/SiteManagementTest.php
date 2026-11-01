@@ -225,7 +225,7 @@ it('removes a site but keeps its database by default', function () {
     expect(Site::count())->toBe(0)
         ->and($this->connection->ran('/down --remove-orphans;/'))->toBeTrue()
         ->and($this->connection->ran('/--volumes/'))->toBeFalse()
-        ->and($secrets)->toContain("SELECT 1\nFLUSHDB\nACL DELUSER shop-example-com")
+        ->and($secrets)->toContain("SELECT 1\nFLUSHDB\nACL DELUSER site-shop-example-com")
         ->and($secrets)->not->toContain('DROP DATABASE')
         ->and($this->connection->ran("/rm -rf -- '\\/opt\\/mini-forge\\/sites\\/shop-example-com'/"))->toBeTrue();
 });
@@ -310,4 +310,15 @@ it('shows live containers on the site page', function () {
         ->call('load')
         ->assertSee('Up 5 minutes (healthy)')
         ->assertSee('Live from the server');
+});
+
+it('handles a domain that starts with a digit, like an IP-based one', function () {
+    $site = createSite($this->server, '77-83-206-143.nip.io');
+
+    ApplySiteConfiguration::run($site);
+
+    expect($site->slug)->toBe('77-83-206-143-nip-io')
+        ->and($site->redisUser())->toBe('site-77-83-206-143-nip-io')
+        ->and($site->databaseName())->toBe('site_77_83_206_143_nip_io')
+        ->and(siteEnv($site, 'REDIS_USERNAME'))->toBe('site-77-83-206-143-nip-io');
 });

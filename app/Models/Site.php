@@ -158,10 +158,10 @@ class Site extends Model
         return substr('site_'.str_replace('-', '_', $this->slug), 0, 63);
     }
 
-    /** Redis ACL user. */
+    /** Redis ACL user. Prefixed because a slug can start with a digit. */
     public function redisUser(): string
     {
-        return $this->slug;
+        return 'site-'.$this->slug;
     }
 
     /** Every Redis key and channel of this site starts with this. */

@@ -450,7 +450,7 @@ final class ComposeManager
 
     private function identifier(string $name): string
     {
-        if (preg_match('/^[a-z][a-z0-9_-]{0,62}$/', $name) !== 1) {
+        if (preg_match('/^[a-z][a-z0-9_-]{0,254}$/', $name) !== 1) {
             throw new RuntimeException("Unexpected identifier [{$name}].");
         }
 
