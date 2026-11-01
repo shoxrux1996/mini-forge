@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Servers\Schemas;
 
+use App\Livewire\ServerMetricsPanel;
 use App\Models\Server;
 use Carbon\CarbonInterval;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Livewire;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
@@ -45,6 +47,9 @@ class ServerInfolist
                             ->columnSpanFull()
                             ->visible(fn (Server $record) => filled($record->last_error)),
                     ]),
+
+                Livewire::make(ServerMetricsPanel::class, fn (Server $record) => ['server' => $record])
+                    ->key('server-metrics'),
 
                 Section::make('Public key')
                     ->description('Add this line to ~/.ssh/authorized_keys for the SSH user on the server.')

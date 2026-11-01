@@ -50,6 +50,19 @@ final class SiteEnvironment
     }
 
     /**
+     * Values that must never appear in stored or displayed output.
+     *
+     * @return list<string>
+     */
+    public static function secrets(Site $site): array
+    {
+        return [
+            ...$site->environmentVariables()->where('is_sensitive', true)->get()->pluck('value')->filter()->values()->all(),
+            ...($site->registry?->secrets() ?? []),
+        ];
+    }
+
+    /**
      * @return array<string, ?string>
      */
     public static function variables(Site $site): array

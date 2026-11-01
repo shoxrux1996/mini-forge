@@ -93,6 +93,10 @@ class ViewSite extends ViewRecord
                 ->requiresConfirmation()
                 ->modalDescription('The site goes offline until you start it again. Containers, files and data are kept.')
                 ->action(fn (Site $record) => $this->attempt(fn () => StopSite::run($record), 'Site stopped')),
+            Action::make('logs')
+                ->icon(Heroicon::OutlinedDocumentText)
+                ->color('gray')
+                ->url(fn (Site $record) => SiteResource::getUrl('logs', ['record' => $record])),
             EditAction::make()->label('Settings'),
             ActionGroup::make([
                 Action::make('remove')

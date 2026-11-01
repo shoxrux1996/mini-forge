@@ -6,6 +6,8 @@ namespace App\Infrastructure\Docker;
 
 use App\Contracts\ServerConnection;
 use App\Data\CommandResult;
+use App\Enums\ArtisanCommand;
+use App\Enums\ServiceRole;
 use App\Infrastructure\SSH\Shell;
 use App\Models\Registry;
 use App\Models\Site;
@@ -19,6 +21,9 @@ final class ComposeManager
 {
     /** Group of www-data in the Debian-based FrankenPHP images. */
     private const int WEB_GROUP = 33;
+
+    /** Logs shown at once; lines can be long, and they pass through the browser. */
+    private const int LOG_BYTES = 262_144;
 
     public function __construct(
         private readonly ServerConnection $connection,
@@ -219,6 +224,77 @@ final class ComposeManager
         )->output;
 
         return self::parseContainers($output);
+    }
+
+    /** Runs an allowlisted command in the web container; the caller reads the result. */
+    public function artisan(ArtisanCommand $command): CommandResult
+    {
+        return $this->connection->run(
+            $this->composeCommand('exec -T web '.Shell::command('php', 'artisan', ...$command->arguments())),
+            600,
+        );
+    }
+
+    /** The last lines of a service's logs, at most LOG_BYTES of them. */
+    public function logs(ServiceRole $service, int $lines): string
+    {
+        $command = $this->composeCommand('logs --no-color --no-log-prefix --timestamps --tail '.max(1, $lines).' '.$service->value);
+        $output = $this->run($command.' 2>&1 | tail -c '.self::LOG_BYTES, 'Reading logs', 60)->output;
+
+        return (string) preg_replace('/\e\[[0-9;]*[A-Za-z]/', '', $output);
+    }
+
+    /**
+     * What Docker reports about a service's container. Only the fields below
+     * leave the server: `Config.Env` and the like never do.
+     *
+     * @return array<string, string>
+     */
+    public function inspect(ServiceRole $service): array
+    {
+        $ids = $this->composeCommand('ps --all --quiet '.$service->value);
+
+        $output = $this->run(
+            "ids=\$({$ids})\n".'if [ -z "$ids" ]; then echo "No container for this service." >&2; exit 1; fi'."\n".'docker inspect $ids',
+            'Inspecting the container',
+        )->output;
+
+        return self::parseInspection($output);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function parseInspection(string $output): array
+    {
+        $container = json_decode($output, true)[0] ?? null;
+
+        if (! is_array($container)) {
+            throw new RuntimeException('Docker returned no container details.');
+        }
+
+        $health = data_get($container, 'State.Health.Log');
+        $lastCheck = is_array($health) && $health !== [] ? end($health) : null;
+        $memory = (int) data_get($container, 'HostConfig.Memory', 0);
+
+        return array_filter([
+            'Name' => ltrim((string) data_get($container, 'Name'), '/'),
+            'Image' => (string) data_get($container, 'Config.Image'),
+            'State' => (string) data_get($container, 'State.Status'),
+            'Health' => (string) data_get($container, 'State.Health.Status'),
+            'Started' => (string) data_get($container, 'State.StartedAt'),
+            'Exit code' => (string) data_get($container, 'State.ExitCode'),
+            'Out of memory' => data_get($container, 'State.OOMKilled') ? 'Yes, killed' : 'No',
+            'Restarts' => (string) data_get($container, 'RestartCount'),
+            'Memory limit' => $memory > 0 ? intdiv($memory, 1048576).' MB' : 'None',
+            'Command' => implode(' ', array_map(strval(...), (array) data_get($container, 'Config.Cmd', []))),
+            'Networks' => implode(', ', array_keys((array) data_get($container, 'NetworkSettings.Networks', []))),
+            'Mounts' => implode(', ', array_map(
+                fn (array $mount) => ($mount['Destination'] ?? '').(($mount['RW'] ?? true) ? '' : ' (read-only)'),
+                array_filter((array) data_get($container, 'Mounts', []), is_array(...)),
+            )),
+            'Last health check' => is_array($lastCheck) ? trim((string) ($lastCheck['Output'] ?? '')) : '',
+        ], fn (string $value) => $value !== '');
     }
 
     /**

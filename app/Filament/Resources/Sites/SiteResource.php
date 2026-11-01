@@ -7,7 +7,9 @@ namespace App\Filament\Resources\Sites;
 use App\Filament\Resources\Sites\Pages\CreateSite;
 use App\Filament\Resources\Sites\Pages\EditSite;
 use App\Filament\Resources\Sites\Pages\ListSites;
+use App\Filament\Resources\Sites\Pages\SiteLogs;
 use App\Filament\Resources\Sites\Pages\ViewSite;
+use App\Filament\Resources\Sites\RelationManagers\ArtisanRunsRelationManager;
 use App\Filament\Resources\Sites\RelationManagers\DeploymentsRelationManager;
 use App\Filament\Resources\Sites\RelationManagers\EnvironmentVariablesRelationManager;
 use App\Filament\Resources\Sites\Schemas\SiteForm;
@@ -50,6 +52,7 @@ class SiteResource extends Resource
         return [
             DeploymentsRelationManager::class,
             EnvironmentVariablesRelationManager::class,
+            ArtisanRunsRelationManager::class,
         ];
     }
 
@@ -60,6 +63,7 @@ class SiteResource extends Resource
             'create' => CreateSite::route('/create'),
             'view' => ViewSite::route('/{record}'),
             'edit' => EditSite::route('/{record}/edit'),
+            'logs' => SiteLogs::route('/{record}/logs'),
         ];
     }
 }

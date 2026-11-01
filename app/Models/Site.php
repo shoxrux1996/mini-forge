@@ -119,6 +119,14 @@ class Site extends Model
     }
 
     /**
+     * @return HasMany<ArtisanRun, $this>
+     */
+    public function artisanRuns(): HasMany
+    {
+        return $this->hasMany(ArtisanRun::class);
+    }
+
+    /**
      * @return HasMany<DockerService, $this>
      */
     public function services(): HasMany

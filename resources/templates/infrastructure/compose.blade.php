@@ -65,7 +65,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    mem_limit: 128m
+    mem_limit: 256m
     logging: *logging
 
   # Shared by all sites, one database and login role per site. Reachable

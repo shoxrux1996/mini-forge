@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Deployments;
 
 use App\Actions\Sites\ApplySiteConfiguration;
+use App\Actions\Sites\SiteEnvironment;
 use App\Actions\Sites\SiteOperation;
 use App\Enums\RunStatus;
 use App\Enums\SiteStatus;
@@ -61,7 +62,7 @@ class DeploySite
     {
         $this->deployment = $deployment;
         $site = $deployment->site;
-        $this->redactor = new Redactor($this->secrets($site));
+        $this->redactor = new Redactor(SiteEnvironment::secrets($site));
 
         foreach ($deployment->steps()->get() as $step) {
             if (($key = DeploymentPlan::key($step->name)) !== null) {
@@ -285,17 +286,6 @@ class DeploySite
             $this->deployment->previous_image,
             ...$recent,
         ])));
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function secrets(Site $site): array
-    {
-        return [
-            ...$site->environmentVariables()->where('is_sensitive', true)->get()->pluck('value')->filter()->all(),
-            ...($site->registry?->secrets() ?? []),
-        ];
     }
 
     private static function lines(string $output): string

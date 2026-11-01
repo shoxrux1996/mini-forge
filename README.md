@@ -14,7 +14,7 @@ Built with Laravel 13, Filament 5, SQLite and phpseclib.
 | 2 | SSH, host-key pinning, inspection, Docker + Traefik provisioning | Done |
 | 3 | Sites, Compose templates, environment editor, start/stop | Done |
 | 4 | Image build and push, deployments, health checks, rollback | Done |
-| 5 | Metrics, containers, logs, Artisan commands, docs | Next |
+| 5 | Metrics, containers, logs, Artisan commands, docs | Done |
 
 ## Run it locally
 
@@ -191,6 +191,58 @@ Know before you rely on it:
   restarts of a site share one lock.
 - Step logs keep the last 16 KB per step, with registry tokens and secret
   environment values replaced by `[redacted]`.
+
+## Day-to-day operations
+
+**Live usage** on a server page shows CPU, load, memory, disk, swap and each
+container's CPU and memory. It is read over SSH when the page opens and every
+30 seconds while it stays open. Nothing runs on the server between reads and
+nothing is stored, so there are no graphs or alerts. Values at 75% are marked
+High and at 90% Critical.
+
+**Containers** on a site page lists its containers live. *Inspect* shows state,
+health, restarts, whether it ran out of memory, its limit, networks and mounts.
+Environment variables are left out on purpose.
+
+**Logs** on a site page shows the last 100, 500 or 2000 lines of the web,
+worker or scheduler container (at most 256 KB). You can filter the fetched
+lines and refresh every 5 seconds. Secret values are replaced with
+`[redacted]`. Sites log to stderr by default, so Laravel's own log is here.
+
+**Commands** on a site page runs one of a fixed list in the web container:
+`migrate --force`, `migrate:status`, `optimize`, `optimize:clear`,
+`config:cache`, `route:cache`, `view:cache`, `queue:restart` and
+`horizon:terminate`. There is no free-text input. To add one, add a case to
+`App\Enums\ArtisanCommand`. Runs are queued. If another operation holds the
+site, the run fails with a message rather than waiting. Runs are kept with who started them, exit code
+and redacted output. Cached config lives in the container, so a release or
+restart rebuilds it.
+
+## Troubleshooting
+
+| Symptom | Look at |
+|---|---|
+| A deployment stays Pending | The queue worker is not running. |
+| `Unknown server architecture` | Use **Refresh info** on the server page. |
+| `Host key mismatch` | Stop and find out why it changed. Use **Forget host key** only if you rebuilt the server. |
+| Build fails at `git clone` | This machine needs access to the repository. SSH hosts must already be in `known_hosts`. |
+| `unauthorized` on push or pull | The registry host must match the image repository, and the token needs push and pull access. |
+| Run migrations fails | The step log shows Laravel's error; the old release is still serving. |
+| Start new containers fails | Health check path wrong, or the app crashes at boot: see the step log. The previous image is back. |
+| HTTPS certificate warnings | DNS must point at the server and port 80 must be open for Let's Encrypt. Traefik's logs are on the server: `docker logs mini-forge-traefik`. |
+| A container restarts repeatedly | Inspect it: **Out of memory** means it needs a higher limit. |
+
+## Limitations
+
+- Releases are not zero-downtime, and migrations are never reverted.
+- Metrics are live only: no history or alerts.
+- Mini Forge does not back up Postgres or the `storage` volumes. Set that up
+  yourself before putting real data on a server.
+- Logs cover the site's own containers. Traefik, Postgres and Redis logs need
+  SSH.
+- Per-service commands and memory limits are stored but have no screen yet.
+- A server holds at most 63 sites (one Redis database each).
+- Every account is an administrator.
 
 ## Trying it without a VPS
 

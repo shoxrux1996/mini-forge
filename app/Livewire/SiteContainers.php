@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Livewire;
 
+use App\Actions\Sites\InspectSiteContainer;
 use App\Actions\Sites\ListSiteContainers;
+use App\Enums\ServiceRole;
+use App\Filament\Resources\Sites\SiteResource;
 use App\Models\Site;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
@@ -86,12 +89,37 @@ class SiteContainers extends Component implements HasActions, HasSchemas, HasTab
                     ->fontFamily('mono')
                     ->limit(48),
             ])
+            ->recordActions([
+                Action::make('logs')
+                    ->icon(Heroicon::OutlinedDocumentText)
+                    ->color('gray')
+                    ->url(fn (array $record) => SiteResource::getUrl('logs', ['record' => $this->site, 'service' => $record['service']])),
+                Action::make('inspect')
+                    ->icon(Heroicon::OutlinedMagnifyingGlass)
+                    ->color('gray')
+                    ->modalHeading(fn (array $record) => $record['name'])
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close')
+                    ->modalContent(fn (array $record) => view('livewire.container-details', $this->inspection($record['service']))),
+            ])
             ->headerActions([
                 Action::make('refresh')
                     ->icon(Heroicon::OutlinedArrowPath)
                     ->color('gray')
                     ->action(fn () => $this->load()),
             ]);
+    }
+
+    /**
+     * @return array{details: array<string, string>, error: ?string}
+     */
+    private function inspection(string $service): array
+    {
+        try {
+            return ['details' => InspectSiteContainer::run($this->site, ServiceRole::from($service)), 'error' => null];
+        } catch (RuntimeException $e) {
+            return ['details' => [], 'error' => $e->getMessage()];
+        }
     }
 
     public function render(): View
